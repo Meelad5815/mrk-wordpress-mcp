@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const code = typeof req.query.code === "string" ? req.query.code : "";
   const returnedState = typeof req.query.state === "string" ? req.query.state : "";
   const cookieHeader = req.headers.cookie ?? "";
-  const cookieMatch = cookieHeader.match(/(?:^|;\\s*)mrk_wp_oauth_state=([^;]+)/);
+  const cookieMatch = cookieHeader.match(/(?:^|;\s*)mrk_wp_oauth_state=([^;]+)/);
   const cookieValue = cookieMatch ? decodeURIComponent(cookieMatch[1]) : "";
   const [cookieState, cookieSignature] = cookieValue.split(".");
   if (!code || !returnedState || !cookieState || !cookieSignature || returnedState !== cookieState) {
