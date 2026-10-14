@@ -11,7 +11,8 @@ function config(accessToken: string) {
   const site = process.env.WORDPRESS_SITE;
   if (!site) throw new Error("Missing WORDPRESS_SITE environment variable.");
   if (!accessToken) throw new Error("No WordPress access token is configured for this connection.");
-  return { token: accessToken, site: site.replace(/^https?:\\/\\//, "").replace(/\\/$/, "") };
+  const normalizedSite = site.replace("https://", "").replace("http://", "");
+  return { token: accessToken, site: normalizedSite.endsWith("/") ? normalizedSite.slice(0, -1) : normalizedSite };
 }
 
 async function wp(accessToken: string, path: string, options: { method?: string; body?: Record<string, string | number | boolean | undefined> } = {}) {
