@@ -4,20 +4,17 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 
 const API_BASE = "https://public-api.wordpress.com/rest/v1.1";
+const RESOURCE = "https://mrk-wordpress-mcp.vercel.app";
+const RESOURCE_METADATA = "https://mrk-wordpress-mcp.vercel.app/.well-known/oauth-protected-resource";
 
-function config() {
-  const token = process.env.WORDPRESS_ACCESS_TOKEN;
+function config(accessToken: string) {
   const site = process.env.WORDPRESS_SITE;
-  if (!token || !site) {
-    throw new Error(
-      "Missing WORDPRESS_ACCESS_TOKEN or WORDPRESS_SITE environment variable. See README.md for setup."
-    );
-  }
-  return { token, site: site.replace(/^https?:\/\//, "").replace(/\/$/, "") };
+  if (!site) throw new Error("Missing WORDPRESS_SITE environment variable.");
+  return { token: accessToken, site: site.replace(/^https?:\/\//, "").replace(/\/$/, "") };
 }
 
-async function wp(path: string, options: { method?: string; body?: Record<string, string | number | boolean | undefined> } = {}) {
-  const { token, site } = config();
+async function wp(accessToken: string, path: string, options: { method?: string; body?: Record<string, string | number | boolean | undefined> } = {}) {
+  const { token, site } = config(accessToken);
   const url = new URL(`${API_BASE}/sites/${encodeURIComponent(site)}${path}`);
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
@@ -43,11 +40,11 @@ async function wp(path: string, options: { method?: string; body?: Record<string
   return data;
 }
 
-function createServer() {
-  const server = new McpServer({ name: "mrk-wordpress-mcp", version: "1.0.0" });
+function createServer(accessToken: string) {
+  const server = new McpServer({ name: "mrk-wordpress-mcp", version: "1.1.0" });
 
   server.tool("wordpress_site_info", "Read basic information about the configured WordPress.com site.", async () => {
-    const data = await wp("");
+    const data = await wp(accessToken, "");
     return { content: [{ type: "text", text: JSON.stringify({
       ID: data.ID, name: data.name, URL: data.URL, description: data.description,
       is_private: data.is_private, jetpack: data.jetpack
@@ -55,7 +52,7 @@ function createServer() {
   });
 
   server.tool("wordpress_list_posts", "List recent WordPress.com posts. Drafts may be returned when the token has permission.", async () => {
-    const data = await wp("/posts/?number=10&order_by=date&order=DESC");
+    const data = await wp(accessToken, "/posts/?number=10&order_by=date&order=DESC");
     const posts = (data.posts ?? []).map((p: any) => ({
       ID: p.ID, title: p.title, URL: p.URL, status: p.status, type: p.type,
       date: p.date, modified: p.modified, excerpt: p.excerpt
@@ -64,7 +61,7 @@ function createServer() {
   });
 
   server.tool("wordpress_get_post", "Retrieve a WordPress.com post by numeric post ID.", { post_id: z.number().describe("Numeric WordPress post ID") }, async ({ post_id }: { post_id: number }) => {
-    const data = await wp(`/posts/${encodeURIComponent(String(post_id))}/`);
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`);
     return { content: [{ type: "text", text: JSON.stringify({
       ID: data.ID, title: data.title, content: data.content, excerpt: data.excerpt,
       status: data.status, URL: data.URL, date: data.date, modified: data.modified
@@ -75,7 +72,7 @@ function createServer() {
     title: { type: "string", description: "Post title" },
     content: { type: "string", description: "Post content; WordPress.com accepts HTML" }
   }, async ({ title, content }: { title: string; content: string }) => {
-    const data = await wp("/posts/new", { method: "POST", body: { title, content, status: "draft" } });
+    const data = await wp(accessToken, "/posts/new", { method: "POST", body: { title, content, status: "draft" } });
     return { content: [{ type: "text", text: JSON.stringify({
       ID: data.ID, title: data.title, status: data.status, URL: data.URL, message: "Draft created; it has not been published."
     }, null, 2) }] };
@@ -87,7 +84,7 @@ function createServer() {
     content: { type: "string", description: "New content (optional; HTML accepted)" }
   }, async ({ post_id, title, content }: { post_id: number; title?: string; content?: string }) => {
     if (title === undefined && content === undefined) throw new Error("Provide title or content to update.");
-    const data = await wp(`/posts/${encodeURIComponent(String(post_id))}/`, {
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`, {
       method: "POST", body: { title, content }
     });
     return { content: [{ type: "text", text: JSON.stringify({
@@ -99,20 +96,26 @@ function createServer() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const expectedSecret = process.env.MCP_SERVER_SECRET;
-  const authHeader = req.headers.authorization;
-  if (!expectedSecret) {
-    return res.status(500).json({ error: "MCP_SERVER_SECRET is not configured." });
+  const authHeader = req.headers.authorization ?? "";
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  const configuredSecret = process.env.MCP_SERVER_SECRET;
+  let wordpressToken = bearer;
+
+  // Backward compatibility: requests using the old server secret use the saved WordPress token.
+  if (configuredSecret && bearer === configuredSecret) {
+    wordpressToken = process.env.WORDPRESS_ACCESS_TOKEN ?? "";
   }
-  if (authHeader !== `Bearer ${expectedSecret}`) {
-    return res.status(401).json({ error: "Unauthorized" });
+
+  if (!bearer || !wordpressToken) {
+    res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${RESOURCE_METADATA}"`);
+    return res.status(401).json({ error: "WordPress OAuth access token required." });
   }
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed. Use MCP Streamable HTTP POST requests." });
   }
   try {
-    const server = createServer();
+    const server = createServer(wordpressToken);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on("close", () => { void transport.close(); void server.close(); });
     await server.connect(transport);
