@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { z } from "zod";
 
 const API_BASE = "https://public-api.wordpress.com/rest/v1.1";
 
@@ -62,7 +63,7 @@ function createServer() {
     return { content: [{ type: "text", text: JSON.stringify(posts, null, 2) }] };
   });
 
-  server.tool("wordpress_get_post", "Retrieve a WordPress.com post by numeric post ID.", { post_id: { type: "number", description: "Numeric WordPress post ID" } }, async ({ post_id }: { post_id: number }) => {
+  server.tool("wordpress_get_post", "Retrieve a WordPress.com post by numeric post ID.", { post_id: z.number().describe("Numeric WordPress post ID") }, async ({ post_id }: { post_id: number }) => {
     const data = await wp(`/posts/${encodeURIComponent(String(post_id))}/`);
     return { content: [{ type: "text", text: JSON.stringify({
       ID: data.ID, title: data.title, content: data.content, excerpt: data.excerpt,
