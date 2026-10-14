@@ -28,7 +28,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const expected = createHmac("sha256", stateSecret).update(cookieState).digest();
   let supplied: Buffer;
   try { supplied = Buffer.from(cookieSignature, "hex"); } catch { supplied = Buffer.alloc(0); }
-  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
+  const suppliedBytes = Uint8Array.from(supplied);
+  const expectedBytes = Uint8Array.from(expected);
+  if (suppliedBytes.length !== expectedBytes.length || !timingSafeEqual(new DataView(suppliedBytes.buffer), new DataView(expectedBytes.buffer))) {
     return res.status(400).send("OAuth state signature is invalid. Start again from /api/oauth-start.");
   }
   try {
