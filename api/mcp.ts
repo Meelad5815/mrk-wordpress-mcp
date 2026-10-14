@@ -99,6 +99,14 @@ function createServer() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const expectedSecret = process.env.MCP_SERVER_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expectedSecret) {
+    return res.status(500).json({ error: "MCP_SERVER_SECRET is not configured." });
+  }
+  if (authHeader !== `Bearer ${expectedSecret}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed. Use MCP Streamable HTTP POST requests." });
