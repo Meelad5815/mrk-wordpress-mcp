@@ -12,43 +12,43 @@ A separate MCP server for a WordPress.com site. This repository is independent o
 
 ## Deploy to Vercel
 
-1. Import this repository into Vercel.
-2. Use the project root as-is. Vercel detects the Node.js function in `api/mcp.ts`.
-3. Add the environment variables below in Vercel Project Settings → Environment Variables.
-4. Redeploy after adding or changing environment variables.
+The Vercel project is linked to this repository and deploys automatically from `main`.
 
 Required environment variables:
 
-- `WORDPRESS_ACCESS_TOKEN` — OAuth access token for the WordPress.com account that owns or can edit the site.
 - `WORDPRESS_SITE` — site address, e.g. `hafizmuhammadmeeladraza.wordpress.com` (no protocol).
-- `MCP_SERVER_SECRET` — a long, random secret used to protect the MCP endpoint.
+- `WORDPRESS_ACCESS_TOKEN` — optional legacy fallback token used only when the old `MCP_SERVER_SECRET` is sent.
+- `MCP_SERVER_SECRET` — optional legacy bearer secret for backwards compatibility. ChatGPT's OAuth connection should use a WordPress OAuth access token instead.
 
 Do not commit tokens, app secrets, passwords, or `.env` files to GitHub.
 
-## WordPress.com API authorization
+## OAuth discovery for ChatGPT
 
-Create/register an application at https://developer.wordpress.com/apps/ and set its Redirect URL to:
+The server publishes:
 
-`https://YOUR-VERCEL-PROJECT.vercel.app/api/oauth-callback`
+- `/.well-known/oauth-protected-resource`
+- `/.well-known/oauth-authorization-server`
 
-Add these Vercel Environment Variables: `WORDPRESS_CLIENT_ID`, `WORDPRESS_CLIENT_SECRET`, `WORDPRESS_REDIRECT_URI` (the exact callback URL above), and `OAUTH_STATE_SECRET` (a long random secret). Keep all credentials encrypted/sensitive. After deploying, visit `https://YOUR-VERCEL-PROJECT.vercel.app/api/oauth-start`, sign in to WordPress.com, and authorize the app. The callback displays the access token once. Copy it directly into Vercel as `WORDPRESS_ACCESS_TOKEN`, then redeploy. The account must grant the access required for the site.
+The authorization server metadata uses WordPress.com's OAuth 2.1 endpoints with PKCE and dynamic client registration:
 
-WordPress.com plan/API limitations still apply. A custom MCP server does not bypass WordPress.com permissions or paid-plan restrictions.
+- `https://public-api.wordpress.com/oauth2-1/register`
+- `https://public-api.wordpress.com/oauth2-1/authorize`
+- `https://public-api.wordpress.com/oauth2-1/token`
+
+The MCP endpoint accepts the resulting WordPress OAuth bearer token and uses it for WordPress API calls. No WordPress client secret should be pasted into the MCP endpoint or shared in chat.
 
 ## ChatGPT connection
 
-After deployment, configure a custom remote MCP connector using:
+MCP URL:
 
-`https://YOUR-VERCEL-PROJECT.vercel.app/api/mcp`
+`https://mrk-wordpress-mcp.vercel.app/api/mcp`
 
-Configure HTTP Bearer authentication using the same value as `MCP_SERVER_SECRET`. If your ChatGPT plan or workspace does not offer custom MCP connectors, the server can still be deployed, but it cannot be added through that unavailable feature.
+In ChatGPT's custom MCP connection dialog, choose OAuth and let it discover the settings. If discovery was attempted before the latest deployment, close the dialog and add the server again after the deployment is ready.
+
+WordPress.com account permissions and plan/API limitations still apply.
 
 ## Security notes
 
 - Keep this repository private if possible.
-- Never share the OAuth access token or MCP server secret in chat, screenshots, source files, or Git commits.
-- The MCP endpoint must be protected by Bearer authentication before connecting it to ChatGPT.
-- Draft creation is the default publishing workflow. Review drafts before publishing them.
-
-
-Deployment note: environment variable changes take effect only after a new deployment. The Vercel project is linked to this repository and deploys automatically from `main`.
+- Never share OAuth access tokens, client secrets, or server secrets in chat, screenshots, source files, or Git commits.
+- The server only exposes draft creation, not direct publishing. Review drafts before publishing them.
