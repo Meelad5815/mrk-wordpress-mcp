@@ -29,9 +29,9 @@ Do not commit tokens, app secrets, passwords, or `.env` files to GitHub.
 
 Create/register an application at https://developer.wordpress.com/apps/ and set its Redirect URL to:
 
-`https://YOUR-VERCEL-PROJECT.vercel.app/api/oauth/callback`
+`https://YOUR-VERCEL-PROJECT.vercel.app/api/oauth-callback`
 
-Use the application credentials to obtain an OAuth token with the WordPress.com OAuth flow. The account must grant the access required for the site. Store the resulting token only in Vercel Environment Variables as `WORDPRESS_ACCESS_TOKEN`.
+Add these Vercel Environment Variables: `WORDPRESS_CLIENT_ID`, `WORDPRESS_CLIENT_SECRET`, `WORDPRESS_REDIRECT_URI` (the exact callback URL above), and `OAUTH_STATE_SECRET` (a long random secret). Keep all credentials encrypted/sensitive. After deploying, visit `https://YOUR-VERCEL-PROJECT.vercel.app/api/oauth-start`, sign in to WordPress.com, and authorize the app. The callback displays the access token once. Copy it directly into Vercel as `WORDPRESS_ACCESS_TOKEN`, then redeploy. The account must grant the access required for the site.
 
 WordPress.com plan/API limitations still apply. A custom MCP server does not bypass WordPress.com permissions or paid-plan restrictions.
 
