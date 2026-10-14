@@ -49,3 +49,6 @@ Configure HTTP Bearer authentication using the same value as `MCP_SERVER_SECRET`
 - Never share the OAuth access token or MCP server secret in chat, screenshots, source files, or Git commits.
 - The MCP endpoint must be protected by Bearer authentication before connecting it to ChatGPT.
 - Draft creation is the default publishing workflow. Review drafts before publishing them.
+
+
+Deployment note: environment variable changes take effect only after a new deployment. The Vercel project is linked to this repository and deploys automatically from `main`.
