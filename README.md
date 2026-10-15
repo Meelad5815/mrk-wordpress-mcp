@@ -9,6 +9,12 @@ A separate MCP server for a WordPress.com site. This repository is independent o
 - `wordpress_get_post` — read one post
 - `wordpress_create_draft` — create a draft only; does not publish
 - `wordpress_update_post` — update an existing post
+- `wordpress_publish_post` — publish an existing draft post
+- `wordpress_list_pages` / `wordpress_get_page` — browse and read pages
+- `wordpress_create_draft_page` / `wordpress_update_page` — create draft pages and update page content
+- `wordpress_list_categories` / `wordpress_list_tags` — inspect categories and tags
+- `wordpress_list_media` — list uploaded media and image URLs
+- `wordpress_list_comments` — inspect recent comments and moderation status
 
 ## Deploy to Vercel
 
