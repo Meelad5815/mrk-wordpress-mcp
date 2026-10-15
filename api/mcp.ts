@@ -131,27 +131,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const authHeader = req.headers.authorization ?? "";
   const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  const configuredSecret = process.env.MCP_SERVER_SECRET;
-  let wordpressToken = bearer;
-  if (configuredSecret && bearer === configuredSecret) wordpressToken = process.env.WORDPRESS_ACCESS_TOKEN ?? "";
 
   const rpcMethod = getRpcMethod(req.body);
   const discoveryMethods = new Set(["initialize", "notifications/initialized", "ping", "tools/list"]);
   const isDiscoveryRequest = discoveryMethods.has(rpcMethod);
 
-  // ChatGPT must be able to initialize and discover tool schemas before invoking OAuth-protected tools.
-  // Every actual tool call still requires a bearer token.
+  // The inbound bearer authenticates the MCP client to this server; it is NOT a WordPress.com token.
+  // Use the server-side WordPress.com access token for all WordPress API calls.
   if (!bearer && !isDiscoveryRequest) {
     res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${RESOURCE_METADATA}"`);
     return res.status(401).json({ error: "OAuth authorization is required to call WordPress tools." });
   }
-  if (bearer && !wordpressToken) {
-    res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${RESOURCE_METADATA}"`);
-    return res.status(401).json({ error: "WordPress OAuth access token required." });
+
+  const tokenForHandlers = process.env.WORDPRESS_ACCESS_TOKEN ?? "";
+  if (!tokenForHandlers && !isDiscoveryRequest) {
+    return res.status(500).json({ error: "Missing WORDPRESS_ACCESS_TOKEN environment variable." });
   }
 
   try {
-    const tokenForHandlers = wordpressToken || process.env.WORDPRESS_ACCESS_TOKEN || "";
     const server = createServer(tokenForHandlers);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on("close", () => { void transport.close(); void server.close(); });
