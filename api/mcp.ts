@@ -131,6 +131,122 @@ function createServer(accessToken: string) {
     }, null, 2) }] };
   });
 
+
+  server.registerTool("wordpress_list_pages", {
+    description: "List WordPress.com pages with IDs, titles, URLs, status and modified dates.",
+    inputSchema: { number: z.number().int().min(1).max(50).optional().describe("Number of pages, 1–50; default 20") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ number }) => {
+    const data = await wp(accessToken, `/posts/?type=page&number=${number ?? 20}&order_by=date&order=DESC`);
+    return { content: [{ type: "text", text: JSON.stringify((data.posts ?? []).map((p: any) => ({
+      ID: p.ID, title: p.title, URL: p.URL, status: p.status, modified: p.modified
+    })), null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_page", {
+    description: "Read a WordPress.com page by its numeric ID, including its full content.",
+    inputSchema: { page_id: z.number().int().describe("Numeric page ID") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ page_id }) => {
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`);
+    if (data.type !== "page") throw new Error("The supplied ID is not a page.");
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, content: data.content, excerpt: data.excerpt,
+      status: data.status, URL: data.URL, modified: data.modified
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_create_draft_page", {
+    description: "Create a new WordPress.com page as a draft for review; does not publish it.",
+    inputSchema: {
+      title: z.string().min(1).describe("Page title"),
+      content: z.string().describe("Page body; HTML accepted")
+    },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ title, content }) => {
+    const data = await wp(accessToken, "/posts/new", {
+      method: "POST", body: { title, content, status: "draft", type: "page" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, URL: data.URL,
+      message: "Draft page created; it has not been published."
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_update_page", {
+    description: "Update the title or content of an existing WordPress.com page by ID.",
+    inputSchema: {
+      page_id: z.number().int().describe("Numeric page ID"),
+      title: z.string().optional().describe("Replacement title"),
+      content: z.string().optional().describe("Replacement HTML content")
+    },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ page_id, title, content }) => {
+    if (title === undefined && content === undefined) throw new Error("Provide title or content to update.");
+    const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`);
+    if (existing.type !== "page") throw new Error("The supplied ID is not a page.");
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`, {
+      method: "POST", body: { title, content }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, URL: data.URL, modified: data.modified
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_list_categories", {
+    description: "List available WordPress.com post categories and their IDs.",
+    inputSchema: {},
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async () => {
+    const data = await wp(accessToken, "/categories/?number=100");
+    return { content: [{ type: "text", text: JSON.stringify((data.categories ?? []).map((c: any) => ({
+      ID: c.ID, name: c.name, slug: c.slug, post_count: c.post_count
+    })), null, 2) }] };
+  });
+
+  server.registerTool("wordpress_list_tags", {
+    description: "List WordPress.com tags and their IDs.",
+    inputSchema: {},
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async () => {
+    const data = await wp(accessToken, "/tags/?number=100");
+    return { content: [{ type: "text", text: JSON.stringify((data.tags ?? []).map((t: any) => ({
+      ID: t.ID, name: t.name, slug: t.slug, post_count: t.post_count
+    })), null, 2) }] };
+  });
+
+  server.registerTool("wordpress_list_media", {
+    description: "List recent uploaded WordPress.com media items with IDs, URLs, captions and types.",
+    inputSchema: { number: z.number().int().min(1).max(50).optional().describe("Number of media items, 1–50; default 20") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ number }) => {
+    const data = await wp(accessToken, `/media/?number=${number ?? 20}&order_by=date&order=DESC`);
+    return { content: [{ type: "text", text: JSON.stringify((data.media ?? []).map((m: any) => ({
+      ID: m.ID, URL: m.URL, type: m.type, mime_type: m.mime_type, date: m.date,
+      caption: m.caption, title: m.title
+    })), null, 2) }] };
+  });
+
+  server.registerTool("wordpress_list_comments", {
+    description: "List recent comments on the configured WordPress.com site, including approval status.",
+    inputSchema: { number: z.number().int().min(1).max(50).optional().describe("Number of comments, 1–50; default 20") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ number }) => {
+    const data = await wp(accessToken, `/comments/?number=${number ?? 20}&order_by=date&order=DESC`);
+    return { content: [{ type: "text", text: JSON.stringify((data.comments ?? []).map((c: any) => ({
+      ID: c.ID, post_ID: c.post_ID, author: c.author?.name, content: c.content,
+      status: c.status, date: c.date, URL: c.URL
+    })), null, 2) }] };
+  });
+
   return server;
 }
 
