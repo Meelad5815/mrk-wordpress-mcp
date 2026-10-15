@@ -40,7 +40,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_site_info", {
     description: "Read basic information about the configured WordPress.com site.",
     inputSchema: {},
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async () => {
     const data = await wp(accessToken, "");
@@ -53,7 +52,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_list_posts", {
     description: "List recent WordPress.com posts. Drafts may be returned when the token has permission.",
     inputSchema: {},
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async () => {
     const data = await wp(accessToken, "/posts/?number=10&order_by=date&order=DESC");
@@ -67,7 +65,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_get_post", {
     description: "Retrieve a WordPress.com post by numeric post ID.",
     inputSchema: { post_id: z.number().describe("Numeric WordPress post ID") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async ({ post_id }) => {
     const data = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`);
@@ -83,7 +80,6 @@ function createServer(accessToken: string) {
       title: z.string().describe("Post title"),
       content: z.string().describe("Post content; WordPress.com accepts HTML")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ title, content }) => {
     const data = await wp(accessToken, "/posts/new", { method: "POST", body: { title, content, status: "draft" } });
@@ -100,7 +96,6 @@ function createServer(accessToken: string) {
       title: z.string().optional().describe("New title (optional)"),
       content: z.string().optional().describe("New content (optional; HTML accepted)")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ post_id, title, content }) => {
     if (title === undefined && content === undefined) throw new Error("Provide title or content to update.");
@@ -115,7 +110,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_publish_post", {
     description: "Publish an existing WordPress.com draft post by numeric post ID. Makes the post publicly visible immediately.",
     inputSchema: { post_id: z.number().describe("Numeric ID of the draft post to publish") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ post_id }) => {
     const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`);
@@ -135,7 +129,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_list_pages", {
     description: "List WordPress.com pages with IDs, titles, URLs, status and modified dates.",
     inputSchema: { number: z.number().int().min(1).max(50).optional().describe("Number of pages, 1–50; default 20") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async ({ number }) => {
     const data = await wp(accessToken, `/posts/?type=page&number=${number ?? 20}&order_by=date&order=DESC`);
@@ -147,7 +140,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_get_page", {
     description: "Read a WordPress.com page by its numeric ID, including its full content.",
     inputSchema: { page_id: z.number().int().describe("Numeric page ID") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async ({ page_id }) => {
     const data = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`);
@@ -164,7 +156,6 @@ function createServer(accessToken: string) {
       title: z.string().min(1).describe("Page title"),
       content: z.string().describe("Page body; HTML accepted")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ title, content }) => {
     const data = await wp(accessToken, "/posts/new", {
@@ -183,7 +174,6 @@ function createServer(accessToken: string) {
       title: z.string().optional().describe("Replacement title"),
       content: z.string().optional().describe("Replacement HTML content")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ page_id, title, content }) => {
     if (title === undefined && content === undefined) throw new Error("Provide title or content to update.");
@@ -200,7 +190,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_list_categories", {
     description: "List available WordPress.com post categories and their IDs.",
     inputSchema: {},
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async () => {
     const data = await wp(accessToken, "/categories/?number=100");
@@ -212,7 +201,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_list_tags", {
     description: "List WordPress.com tags and their IDs.",
     inputSchema: {},
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async () => {
     const data = await wp(accessToken, "/tags/?number=100");
@@ -224,7 +212,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_list_media", {
     description: "List recent uploaded WordPress.com media items with IDs, URLs, captions and types.",
     inputSchema: { number: z.number().int().min(1).max(50).optional().describe("Number of media items, 1–50; default 20") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async ({ number }) => {
     const data = await wp(accessToken, `/media/?number=${number ?? 20}&order_by=date&order=DESC`);
@@ -237,7 +224,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_list_comments", {
     description: "List recent comments on the configured WordPress.com site, including approval status.",
     inputSchema: { number: z.number().int().min(1).max(50).optional().describe("Number of comments, 1–50; default 20") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async ({ number }) => {
     const data = await wp(accessToken, `/comments/?number=${number ?? 20}&order_by=date&order=DESC`);
@@ -255,7 +241,6 @@ function createServer(accessToken: string) {
       type: z.enum(["post", "page", "any"]).optional().describe("Content type; default any"),
       number: z.number().int().min(1).max(50).optional().describe("Maximum results; default 20")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async ({ query, type, number }) => {
     const params = new URLSearchParams({ search: query, number: String(number ?? 20), order_by: "date", order: "DESC" });
@@ -272,7 +257,6 @@ function createServer(accessToken: string) {
       name: z.string().min(1).describe("Category name"),
       parent: z.number().int().optional().describe("Optional parent category ID")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ name, parent }) => {
     const data = await wp(accessToken, "/categories/new", { method: "POST", body: { name, parent } });
@@ -284,7 +268,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_create_tag", {
     description: "Create a post tag if the connected WordPress.com account and plan allow it.",
     inputSchema: { name: z.string().min(1).describe("Tag name") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ name }) => {
     const data = await wp(accessToken, "/tags/new", { method: "POST", body: { name } });
@@ -296,7 +279,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_trash_post", {
     description: "Move a post to trash by ID. This is a destructive content action; verify the ID before calling.",
     inputSchema: { post_id: z.number().int().describe("Numeric ID of the post to move to trash") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false }
   }, async ({ post_id }) => {
     const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`);
@@ -312,7 +294,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_trash_page", {
     description: "Move a page to trash by ID. This is a destructive content action; verify the ID before calling.",
     inputSchema: { page_id: z.number().int().describe("Numeric ID of the page to move to trash") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false }
   }, async ({ page_id }) => {
     const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`);
@@ -331,7 +312,6 @@ function createServer(accessToken: string) {
       comment_id: z.number().int().describe("Numeric comment ID"),
       status: z.enum(["approved", "unapproved", "spam", "trash"]).describe("New moderation status")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false }
   }, async ({ comment_id, status }) => {
     const data = await wp(accessToken, `/comments/${encodeURIComponent(String(comment_id))}/`, {
@@ -345,7 +325,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_get_comment", {
     description: "Retrieve one comment by numeric ID, including content, author, post ID and moderation status.",
     inputSchema: { comment_id: z.number().int().describe("Numeric comment ID") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async ({ comment_id }) => {
     const data = await wp(accessToken, `/comments/${encodeURIComponent(String(comment_id))}/`);
@@ -358,7 +337,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_get_media_item", {
     description: "Retrieve one media-library item by numeric ID, including its URL, caption, title and MIME type.",
     inputSchema: { media_id: z.number().int().describe("Numeric media ID") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async ({ media_id }) => {
     const data = await wp(accessToken, `/media/${encodeURIComponent(String(media_id))}/`);
@@ -371,7 +349,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_site_tags_and_categories_summary", {
     description: "Return a compact summary of category and tag counts and names, subject to API access.",
     inputSchema: {},
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async () => {
     const [categories, tags] = await Promise.all([
@@ -394,7 +371,6 @@ function createServer(accessToken: string) {
       type: z.enum(["post", "page", "any"]).optional().describe("Optional content type filter"),
       number: z.number().int().min(1).max(50).optional().describe("Maximum results; default 20")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async ({ status, type, number }) => {
     const params = new URLSearchParams({ number: String(number ?? 20), order_by: "date", order: "DESC" });
@@ -417,7 +393,6 @@ function createServer(accessToken: string) {
       slug: z.string().optional().describe("URL slug"),
       status: z.enum(["draft", "publish", "pending", "private", "future"]).optional().describe("New status; publish makes it public")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ post_id, title, content, excerpt, slug, status }) => {
     if ([title, content, excerpt, slug, status].every(v => v === undefined)) throw new Error("Provide at least one field to update.");
@@ -442,7 +417,6 @@ function createServer(accessToken: string) {
       slug: z.string().optional().describe("URL slug"),
       status: z.enum(["draft", "publish", "pending", "private", "future"]).optional().describe("New status")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ page_id, title, content, excerpt, slug, status }) => {
     if ([title, content, excerpt, slug, status].every(v => v === undefined)) throw new Error("Provide at least one field to update.");
@@ -460,7 +434,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_duplicate_post_as_draft", {
     description: "Copy an existing post's title and content into a new draft for safe editing.",
     inputSchema: { post_id: z.number().int().describe("ID of the post to copy") },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ post_id }) => {
     const original = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`);
@@ -482,7 +455,6 @@ function createServer(accessToken: string) {
       caption: z.string().optional().describe("New caption"),
       description: z.string().optional().describe("New description")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ media_id, title, caption, description }) => {
     if ([title, caption, description].every(v => v === undefined)) throw new Error("Provide title, caption or description.");
@@ -498,7 +470,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_list_post_types", {
     description: "List content types exposed by the configured WordPress.com site, subject to API access.",
     inputSchema: {},
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async () => {
     const data = await wp(accessToken, "/types");
@@ -508,7 +479,6 @@ function createServer(accessToken: string) {
   server.registerTool("wordpress_list_taxonomies", {
     description: "List taxonomies exposed by the configured WordPress.com site, subject to API access.",
     inputSchema: {},
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async () => {
     const data = await wp(accessToken, "/taxonomies");
@@ -522,7 +492,6 @@ function createServer(accessToken: string) {
       content: z.string().describe("Post body; HTML accepted"),
       excerpt: z.string().optional().describe("Optional summary/excerpt")
     },
-    securitySchemes: OAUTH_SCHEMES,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   }, async ({ title, content, excerpt }) => {
     const data = await wp(accessToken, "/posts/new", {
