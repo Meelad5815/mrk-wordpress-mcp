@@ -15,6 +15,12 @@ A separate MCP server for a WordPress.com site. This repository is independent o
 - `wordpress_list_categories` / `wordpress_list_tags` — inspect categories and tags
 - `wordpress_list_media` — list uploaded media and image URLs
 - `wordpress_list_comments` — inspect recent comments and moderation status
+- `wordpress_search_posts` — search posts and pages by keyword
+- `wordpress_create_category` / `wordpress_create_tag` — create categories and tags when permitted
+- `wordpress_trash_post` / `wordpress_trash_page` — move content to trash (destructive)
+- `wordpress_get_comment` / `wordpress_update_comment_status` — read a comment and moderate its status when permitted
+- `wordpress_get_media_item` — inspect a media item by ID
+- `wordpress_site_tags_and_categories_summary` — get a combined taxonomy summary
 
 ## Deploy to Vercel
 
