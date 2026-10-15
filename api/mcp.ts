@@ -503,6 +503,121 @@ function createServer(accessToken: string) {
     }, null, 2) }] };
   });
 
+
+  server.registerTool("wordpress_duplicate_page_as_draft", {
+    description: "Copy an existing page's title and content into a new draft page for safe editing.",
+    inputSchema: { page_id: z.number().int().describe("ID of the page to copy") },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ page_id }) => {
+    const original = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`);
+    if (original.type !== "page") throw new Error("The supplied ID is not a page.");
+    const data = await wp(accessToken, "/posts/new", {
+      method: "POST", body: {
+        title: original.title ? `Copy of ${original.title}` : "Copy of page",
+        content: original.content ?? "", excerpt: original.excerpt ?? "",
+        status: "draft", type: "page"
+      }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      original_ID: original.ID, new_ID: data.ID, title: data.title, status: data.status,
+      message: "A separate draft page was created; the original page was not changed."
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_search_media", {
+    description: "Search the site's media library by keyword when supported by the WordPress.com API.",
+    inputSchema: {
+      query: z.string().min(1).describe("Keyword to search in media titles"),
+      number: z.number().int().min(1).max(50).optional().describe("Maximum results; default 20")
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ query, number }) => {
+    const params = new URLSearchParams({ search: query, number: String(number ?? 20) });
+    const data = await wp(accessToken, `/media/?${params.toString()}`);
+    const items = data.media ?? data.files ?? [];
+    return { content: [{ type: "text", text: JSON.stringify(items.map((m: any) => ({
+      ID: m.ID, title: m.title, URL: m.URL, mime_type: m.mime_type,
+      date: m.date, width: m.width, height: m.height
+    })), null, 2) }] };
+  });
+
+  server.registerTool("wordpress_list_comments_filtered", {
+    description: "List comments with an optional moderation status and result limit.",
+    inputSchema: {
+      status: z.enum(["approved", "unapproved", "spam", "trash", "all"]).optional().describe("Moderation status filter"),
+      number: z.number().int().min(1).max(50).optional().describe("Maximum results; default 20")
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ status, number }) => {
+    const params = new URLSearchParams({ number: String(number ?? 20) });
+    if (status && status !== "all") params.set("status", status);
+    const data = await wp(accessToken, `/comments/?${params.toString()}`);
+    const comments = data.comments ?? [];
+    return { content: [{ type: "text", text: JSON.stringify(comments.map((c: any) => ({
+      ID: c.ID, post: c.post, author: c.author, date: c.date,
+      content: c.content, status: c.status, URL: c.URL
+    })), null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_site_stats_summary", {
+    description: "Retrieve a WordPress.com site statistics summary if the account and plan expose stats through the API.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async () => {
+    const data = await wp(accessToken, "/stats");
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_site_stats_visits", {
+    description: "Retrieve daily visits statistics for the configured site when available to the connected account.",
+    inputSchema: {
+      period: z.enum(["day", "week", "month", "year"]).optional().describe("Statistics period; default day"),
+      date: z.string().optional().describe("Optional date or period start accepted by WordPress.com stats API")
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ period, date }) => {
+    const params = new URLSearchParams();
+    if (period) params.set("period", period);
+    if (date) params.set("date", date);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    const data = await wp(accessToken, `/stats/visits${suffix}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_top_posts_stats", {
+    description: "Retrieve top posts/pages from WordPress.com stats if stats access is available.",
+    inputSchema: {
+      period: z.enum(["day", "week", "month", "year"]).optional().describe("Statistics period"),
+      date: z.string().optional().describe("Optional date accepted by the stats API")
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ period, date }) => {
+    const params = new URLSearchParams();
+    if (period) params.set("period", period);
+    if (date) params.set("date", date);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    const data = await wp(accessToken, `/stats/top-posts${suffix}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_create_page_draft_with_excerpt", {
+    description: "Create a page draft with title, HTML content and optional excerpt; does not publish.",
+    inputSchema: {
+      title: z.string().min(1).describe("Page title"),
+      content: z.string().describe("Page body; HTML accepted"),
+      excerpt: z.string().optional().describe("Optional summary/excerpt")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ title, content, excerpt }) => {
+    const data = await wp(accessToken, "/posts/new", {
+      method: "POST", body: { title, content, excerpt, status: "draft", type: "page" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, excerpt: data.excerpt, status: data.status,
+      URL: data.URL, message: "Draft page created, not published."
+    }, null, 2) }] };
+  });
+
   return server;
 }
 
