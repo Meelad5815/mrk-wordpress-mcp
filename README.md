@@ -40,6 +40,11 @@ A separate MCP server for a WordPress.com site. This repository is independent o
 - `wordpress_restore_post_to_draft` / `wordpress_restore_page_to_draft` — request restoration as a draft
 - `wordpress_schedule_page` — create a page scheduled for future publication where supported
 - `wordpress_get_stats_referrers` — inspect traffic referrers where stats access is available
+- `wordpress_list_pages_filtered` — list pages by search/status
+- `wordpress_get_post_by_slug` / `wordpress_get_page_by_slug` — retrieve content by URL slug
+- `wordpress_get_post_status_counts` — summarize post counts by status where the API reports counts
+- `wordpress_assign_post_categories_tags` — update an existing post's categories and tags
+
 
 ## Deploy to Vercel
 
