@@ -668,6 +668,107 @@ function createServer(accessToken: string) {
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
   });
 
+
+  server.registerTool("wordpress_set_featured_image", {
+    description: "Set or replace the featured image on a post or page using a media-library ID, if the WordPress.com API permits it.",
+    inputSchema: {
+      content_id: z.number().int().describe("Numeric post or page ID"),
+      media_id: z.number().int().describe("Numeric media-library ID to use as the featured image")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ content_id, media_id }) => {
+    const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(content_id))}/`);
+    const media = await wp(accessToken, `/media/${encodeURIComponent(String(media_id))}/`);
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(content_id))}/`, {
+      method: "POST", body: { featured_image: media.ID }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, type: data.type ?? existing.type, title: data.title,
+      featured_image: data.featured_image, featured_image_url: data.featured_image_url,
+      media_ID: media.ID, URL: data.URL
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_post_revisions", {
+    description: "List revisions for a post or page when revisions are exposed by the WordPress.com API.",
+    inputSchema: {
+      content_id: z.number().int().describe("Numeric post or page ID"),
+      number: z.number().int().min(1).max(50).optional().describe("Maximum revisions to return; default 20")
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ content_id, number }) => {
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(content_id))}/revisions/?number=${number ?? 20}`);
+    const revisions = data.revisions ?? data.posts ?? data;
+    return { content: [{ type: "text", text: JSON.stringify(revisions, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_restore_post_to_draft", {
+    description: "Restore a trashed post as a draft. This changes the existing post's status.",
+    inputSchema: { post_id: z.number().int().describe("Numeric ID of the trashed post") },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ post_id }) => {
+    const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`);
+    if (existing.type === "page") throw new Error("This ID is a page. Use wordpress_restore_page_to_draft.");
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`, {
+      method: "POST", body: { status: "draft" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, URL: data.URL,
+      message: "Restore request sent; verify status in WordPress if the API does not allow restoring trash directly."
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_restore_page_to_draft", {
+    description: "Restore a trashed page as a draft. This changes the existing page's status.",
+    inputSchema: { page_id: z.number().int().describe("Numeric ID of the trashed page") },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ page_id }) => {
+    const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`);
+    if (existing.type !== "page") throw new Error("The supplied ID is not a page.");
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`, {
+      method: "POST", body: { status: "draft" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, URL: data.URL,
+      message: "Restore request sent; verify status in WordPress if the API does not allow restoring trash directly."
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_schedule_page", {
+    description: "Create a page scheduled for future publication, if WordPress.com supports scheduled pages for this site.",
+    inputSchema: {
+      title: z.string().min(1).describe("Page title"),
+      content: z.string().describe("Page body; HTML accepted"),
+      date: z.string().min(10).describe("Future publication date/time accepted by WordPress.com")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ title, content, date }) => {
+    const timestamp = Date.parse(date);
+    if (!Number.isFinite(timestamp) || timestamp <= Date.now()) throw new Error("Provide a valid future publication date/time.");
+    const data = await wp(accessToken, "/posts/new", {
+      method: "POST", body: { title, content, date, status: "future", type: "page" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, date: data.date, URL: data.URL
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_stats_referrers", {
+    description: "Retrieve traffic referrer statistics when the site's WordPress.com stats API makes them available.",
+    inputSchema: {
+      period: z.enum(["day", "week", "month", "year"]).optional().describe("Statistics period"),
+      date: z.string().optional().describe("Optional date accepted by the stats API")
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ period, date }) => {
+    const params = new URLSearchParams();
+    if (period) params.set("period", period);
+    if (date) params.set("date", date);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    const data = await wp(accessToken, `/stats/referrers${suffix}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  });
+
   return server;
 }
 
