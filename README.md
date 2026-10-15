@@ -35,6 +35,11 @@ A separate MCP server for a WordPress.com site. This repository is independent o
 - `wordpress_publish_page` — publish an existing draft page
 - `wordpress_schedule_post` — schedule a post for future publication
 - `wordpress_get_site_settings` — read site settings where API access permits
+- `wordpress_set_featured_image` — set a post/page featured image using a media-library ID where supported
+- `wordpress_get_post_revisions` — inspect post/page revisions where the API exposes them
+- `wordpress_restore_post_to_draft` / `wordpress_restore_page_to_draft` — request restoration as a draft
+- `wordpress_schedule_page` — create a page scheduled for future publication where supported
+- `wordpress_get_stats_referrers` — inspect traffic referrers where stats access is available
 
 ## Deploy to Vercel
 
