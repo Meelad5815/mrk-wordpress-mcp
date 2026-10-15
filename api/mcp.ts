@@ -247,6 +247,145 @@ function createServer(accessToken: string) {
     })), null, 2) }] };
   });
 
+
+  server.registerTool("wordpress_search_posts", {
+    description: "Search WordPress.com posts and pages by keyword. Returns matching IDs, titles, URLs, statuses and types.",
+    inputSchema: {
+      query: z.string().min(1).describe("Keyword or phrase to search"),
+      type: z.enum(["post", "page", "any"]).optional().describe("Content type; default any"),
+      number: z.number().int().min(1).max(50).optional().describe("Maximum results; default 20")
+    },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ query, type, number }) => {
+    const params = new URLSearchParams({ search: query, number: String(number ?? 20), order_by: "date", order: "DESC" });
+    if (type && type !== "any") params.set("type", type);
+    const data = await wp(accessToken, `/posts/?${params.toString()}`);
+    return { content: [{ type: "text", text: JSON.stringify((data.posts ?? []).map((p: any) => ({
+      ID: p.ID, title: p.title, URL: p.URL, status: p.status, type: p.type, modified: p.modified
+    })), null, 2) }] };
+  });
+
+  server.registerTool("wordpress_create_category", {
+    description: "Create a post category if the connected WordPress.com account and plan allow it.",
+    inputSchema: {
+      name: z.string().min(1).describe("Category name"),
+      parent: z.number().int().optional().describe("Optional parent category ID")
+    },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ name, parent }) => {
+    const data = await wp(accessToken, "/categories/new", { method: "POST", body: { name, parent } });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, name: data.name, slug: data.slug, parent: data.parent
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_create_tag", {
+    description: "Create a post tag if the connected WordPress.com account and plan allow it.",
+    inputSchema: { name: z.string().min(1).describe("Tag name") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ name }) => {
+    const data = await wp(accessToken, "/tags/new", { method: "POST", body: { name } });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, name: data.name, slug: data.slug
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_trash_post", {
+    description: "Move a post to trash by ID. This is a destructive content action; verify the ID before calling.",
+    inputSchema: { post_id: z.number().int().describe("Numeric ID of the post to move to trash") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false }
+  }, async ({ post_id }) => {
+    const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`);
+    if (existing.type === "page") throw new Error("This ID is a page, not a post. Use wordpress_trash_page.");
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`, {
+      method: "POST", body: { status: "trash" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, message: "Trash request completed if supported by WordPress.com."
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_trash_page", {
+    description: "Move a page to trash by ID. This is a destructive content action; verify the ID before calling.",
+    inputSchema: { page_id: z.number().int().describe("Numeric ID of the page to move to trash") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false }
+  }, async ({ page_id }) => {
+    const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`);
+    if (existing.type !== "page") throw new Error("The supplied ID is not a page.");
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`, {
+      method: "POST", body: { status: "trash" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, message: "Trash request completed if supported by WordPress.com."
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_update_comment_status", {
+    description: "Change a comment's moderation status if WordPress.com API permissions allow it.",
+    inputSchema: {
+      comment_id: z.number().int().describe("Numeric comment ID"),
+      status: z.enum(["approved", "unapproved", "spam", "trash"]).describe("New moderation status")
+    },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false }
+  }, async ({ comment_id, status }) => {
+    const data = await wp(accessToken, `/comments/${encodeURIComponent(String(comment_id))}/`, {
+      method: "POST", body: { status }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, post_ID: data.post_ID, status: data.status, message: "WordPress API response received."
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_comment", {
+    description: "Retrieve one comment by numeric ID, including content, author, post ID and moderation status.",
+    inputSchema: { comment_id: z.number().int().describe("Numeric comment ID") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ comment_id }) => {
+    const data = await wp(accessToken, `/comments/${encodeURIComponent(String(comment_id))}/`);
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, post_ID: data.post_ID, author: data.author?.name,
+      content: data.content, status: data.status, date: data.date, URL: data.URL
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_media_item", {
+    description: "Retrieve one media-library item by numeric ID, including its URL, caption, title and MIME type.",
+    inputSchema: { media_id: z.number().int().describe("Numeric media ID") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ media_id }) => {
+    const data = await wp(accessToken, `/media/${encodeURIComponent(String(media_id))}/`);
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, URL: data.URL, type: data.type, mime_type: data.mime_type,
+      title: data.title, caption: data.caption, description: data.description, date: data.date
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_site_tags_and_categories_summary", {
+    description: "Return a compact summary of category and tag counts and names, subject to API access.",
+    inputSchema: {},
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async () => {
+    const [categories, tags] = await Promise.all([
+      wp(accessToken, "/categories/?number=100"),
+      wp(accessToken, "/tags/?number=100")
+    ]);
+    return { content: [{ type: "text", text: JSON.stringify({
+      category_count: (categories.categories ?? []).length,
+      categories: (categories.categories ?? []).map((c: any) => ({ ID: c.ID, name: c.name, slug: c.slug })),
+      tag_count: (tags.tags ?? []).length,
+      tags: (tags.tags ?? []).map((t: any) => ({ ID: t.ID, name: t.name, slug: t.slug }))
+    }, null, 2) }] };
+  });
+
   return server;
 }
 
