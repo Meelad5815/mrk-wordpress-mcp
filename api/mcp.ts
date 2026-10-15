@@ -769,6 +769,93 @@ function createServer(accessToken: string) {
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
   });
 
+
+  server.registerTool("wordpress_list_pages_filtered", {
+    description: "List WordPress pages with optional search and status filters.",
+    inputSchema: {
+      search: z.string().optional().describe("Search page titles/content"),
+      status: z.enum(["publish", "draft", "pending", "private", "future", "trash", "any"]).optional().describe("Page status filter"),
+      number: z.number().int().min(1).max(100).optional().describe("Maximum pages to return, up to 100")
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ search, status, number }) => {
+    const params = new URLSearchParams({ type: "page", number: String(number ?? 20), order_by: "modified", order: "DESC" });
+    if (search) params.set("search", search);
+    if (status) params.set("status", status);
+    const data = await wp(accessToken, `/posts/?${params.toString()}`);
+    const pages = (data.posts ?? []).map((p: any) => ({
+      ID: p.ID, title: p.title, URL: p.URL, status: p.status,
+      date: p.date, modified: p.modified, parent: p.parent, slug: p.slug
+    }));
+    return { content: [{ type: "text", text: JSON.stringify(pages, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_post_by_slug", {
+    description: "Find a post by its URL slug using the WordPress.com posts search endpoint.",
+    inputSchema: { slug: z.string().min(1).describe("Post slug, without URL path") },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ slug }) => {
+    const data = await wp(accessToken, `/posts/slug:${encodeURIComponent(slug)}/`);
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, slug: data.slug, content: data.content,
+      excerpt: data.excerpt, status: data.status, URL: data.URL, date: data.date,
+      modified: data.modified
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_page_by_slug", {
+    description: "Find a page by its URL slug using the WordPress.com posts endpoint.",
+    inputSchema: { slug: z.string().min(1).describe("Page slug, without URL path") },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ slug }) => {
+    const data = await wp(accessToken, `/posts/slug:${encodeURIComponent(slug)}/?type=page`);
+    if (data.type && data.type !== "page") throw new Error("The matching content is not a page.");
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, slug: data.slug, content: data.content,
+      excerpt: data.excerpt, status: data.status, URL: data.URL, date: data.date,
+      modified: data.modified, parent: data.parent
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_post_status_counts", {
+    description: "Count posts by status using separate WordPress.com API queries. Counts depend on account permissions and API support.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async () => {
+    const statuses = ["publish", "draft", "pending", "private", "future", "trash"];
+    const results: Record<string, number | string> = {};
+    for (const status of statuses) {
+      try {
+        const data = await wp(accessToken, `/posts/?number=1&type=post&status=${status}`);
+        results[status] = Number(data.found ?? data.total ?? (Array.isArray(data.posts) ? data.posts.length : 0));
+      } catch (error) {
+        results[status] = error instanceof Error ? `Unavailable: ${error.message}` : "Unavailable";
+      }
+    }
+    return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_assign_post_categories_tags", {
+    description: "Assign categories and tags to an existing post using comma-separated category IDs/slugs and tag names/slugs. API support and permissions may vary.",
+    inputSchema: {
+      post_id: z.number().int().describe("Numeric post ID"),
+      categories: z.string().optional().describe("Comma-separated category IDs or slugs, e.g. 12,technology"),
+      tags: z.string().optional().describe("Comma-separated tag names or slugs, e.g. WordPress,SEO")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ post_id, categories, tags }) => {
+    if (categories === undefined && tags === undefined) throw new Error("Provide categories, tags, or both.");
+    const body: Record<string, string> = {};
+    if (categories !== undefined) body.categories = categories;
+    if (tags !== undefined) body.tags = tags;
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`, {
+      method: "POST", body
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, categories: data.categories, tags: data.tags, URL: data.URL
+    }, null, 2) }] };
+  });
+
   return server;
 }
 
