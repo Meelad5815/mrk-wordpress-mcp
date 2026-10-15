@@ -21,6 +21,12 @@ A separate MCP server for a WordPress.com site. This repository is independent o
 - `wordpress_get_comment` / `wordpress_update_comment_status` — read a comment and moderate its status when permitted
 - `wordpress_get_media_item` — inspect a media item by ID
 - `wordpress_site_tags_and_categories_summary` — get a combined taxonomy summary
+- `wordpress_list_posts_filtered` — filter content by status and type
+- `wordpress_update_post_details` / `wordpress_update_page_details` — update excerpt, slug and status in addition to title/content
+- `wordpress_duplicate_post_as_draft` — safely copy an existing post into a new draft
+- `wordpress_update_media_item` — update media title, caption and description when permitted
+- `wordpress_list_post_types` / `wordpress_list_taxonomies` — inspect content types and taxonomies
+- `wordpress_create_post_draft_with_excerpt` — create a draft with an excerpt
 
 ## Deploy to Vercel
 
@@ -63,4 +69,4 @@ WordPress.com account permissions and plan/API limitations still apply.
 
 - Keep this repository private if possible.
 - Never share OAuth access tokens, client secrets, or server secrets in chat, screenshots, source files, or Git commits.
-- The server only exposes draft creation, not direct publishing. Review drafts before publishing them.
+- The server includes both draft-only creation tools and an explicit publish tool. Review content carefully before publishing; trash and moderation tools can change existing site content.
