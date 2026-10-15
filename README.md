@@ -27,6 +27,11 @@ A separate MCP server for a WordPress.com site. This repository is independent o
 - `wordpress_update_media_item` — update media title, caption and description when permitted
 - `wordpress_list_post_types` / `wordpress_list_taxonomies` — inspect content types and taxonomies
 - `wordpress_create_post_draft_with_excerpt` — create a draft with an excerpt
+- `wordpress_duplicate_page_as_draft` — copy a page into a separate draft
+- `wordpress_search_media` — search media by keyword when supported by the API
+- `wordpress_list_comments_filtered` — list comments by moderation status
+- `wordpress_get_site_stats_summary` / `wordpress_get_site_stats_visits` / `wordpress_get_top_posts_stats` — request site analytics where the account and plan permit
+- `wordpress_create_page_draft_with_excerpt` — create a draft page with an excerpt
 
 ## Deploy to Vercel
 
