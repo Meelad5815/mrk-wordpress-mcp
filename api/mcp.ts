@@ -112,6 +112,25 @@ function createServer(accessToken: string) {
     }, null, 2) }] };
   });
 
+  server.registerTool("wordpress_publish_post", {
+    description: "Publish an existing WordPress.com draft post by numeric post ID. Makes the post publicly visible immediately.",
+    inputSchema: { post_id: z.number().describe("Numeric ID of the draft post to publish") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ post_id }) => {
+    const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`);
+    if (existing.status === "publish") {
+      return { content: [{ type: "text", text: JSON.stringify({ ID: existing.ID, title: existing.title, status: existing.status, URL: existing.URL, message: "This post is already published." }, null, 2) }] };
+    }
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`, {
+      method: "POST", body: { status: "publish" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, URL: data.URL,
+      message: data.status === "publish" ? "Post published successfully." : "WordPress did not confirm publication."
+    }, null, 2) }] };
+  });
+
   return server;
 }
 
