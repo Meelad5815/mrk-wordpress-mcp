@@ -32,6 +32,9 @@ A separate MCP server for a WordPress.com site. This repository is independent o
 - `wordpress_list_comments_filtered` — list comments by moderation status
 - `wordpress_get_site_stats_summary` / `wordpress_get_site_stats_visits` / `wordpress_get_top_posts_stats` — request site analytics where the account and plan permit
 - `wordpress_create_page_draft_with_excerpt` — create a draft page with an excerpt
+- `wordpress_publish_page` — publish an existing draft page
+- `wordpress_schedule_post` — schedule a post for future publication
+- `wordpress_get_site_settings` — read site settings where API access permits
 
 ## Deploy to Vercel
 
@@ -40,8 +43,8 @@ The Vercel project is linked to this repository and deploys automatically from `
 Required environment variables:
 
 - `WORDPRESS_SITE` — site address, e.g. `hafizmuhammadmeeladraza.wordpress.com` (no protocol).
-- `WORDPRESS_ACCESS_TOKEN` — optional legacy fallback token used only when the old `MCP_SERVER_SECRET` is sent.
-- `MCP_SERVER_SECRET` — optional legacy bearer secret for backwards compatibility. ChatGPT's OAuth connection should use a WordPress OAuth access token instead.
+- `WORDPRESS_ACCESS_TOKEN` — required server-side WordPress.com API access token used for WordPress API calls.
+- The inbound MCP bearer authenticates calls to this MCP server and is separate from `WORDPRESS_ACCESS_TOKEN`. Never commit or share either token.
 
 Do not commit tokens, app secrets, passwords, or `.env` files to GitHub.
 
@@ -58,7 +61,7 @@ The authorization server metadata uses WordPress.com's OAuth 2.1 endpoints with 
 - `https://public-api.wordpress.com/oauth2-1/authorize`
 - `https://public-api.wordpress.com/oauth2-1/token`
 
-The MCP endpoint accepts the resulting WordPress OAuth bearer token and uses it for WordPress API calls. No WordPress client secret should be pasted into the MCP endpoint or shared in chat.
+The endpoint's OAuth discovery supports ChatGPT connection setup. In the current implementation, WordPress API requests use the server-side `WORDPRESS_ACCESS_TOKEN`; the inbound MCP bearer is checked separately. No client secret or access token should be pasted into chat.
 
 ## ChatGPT connection
 
