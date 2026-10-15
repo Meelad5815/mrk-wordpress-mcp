@@ -618,6 +618,56 @@ function createServer(accessToken: string) {
     }, null, 2) }] };
   });
 
+
+  server.registerTool("wordpress_publish_page", {
+    description: "Publish an existing WordPress.com draft page by ID. Makes the page publicly visible immediately.",
+    inputSchema: { page_id: z.number().int().describe("Numeric ID of the draft page to publish") },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ page_id }) => {
+    const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`);
+    if (existing.type !== "page") throw new Error("The supplied ID is not a page.");
+    if (existing.status === "publish") {
+      return { content: [{ type: "text", text: JSON.stringify({ ID: existing.ID, title: existing.title, status: existing.status, URL: existing.URL, message: "This page is already published." }, null, 2) }] };
+    }
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`, {
+      method: "POST", body: { status: "publish" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, URL: data.URL,
+      message: data.status === "publish" ? "Page published successfully." : "WordPress did not confirm publication."
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_schedule_post", {
+    description: "Schedule a post for future publication. Supply a future ISO-like date/time accepted by WordPress.com; this changes the post's status to future.",
+    inputSchema: {
+      title: z.string().min(1).describe("Post title"),
+      content: z.string().describe("Post body; HTML accepted"),
+      date: z.string().min(10).describe("Future publication date/time, e.g. 2026-12-01T10:00:00"),
+      excerpt: z.string().optional().describe("Optional summary/excerpt")
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ title, content, date, excerpt }) => {
+    const timestamp = Date.parse(date);
+    if (!Number.isFinite(timestamp) || timestamp <= Date.now()) throw new Error("Provide a valid future publication date/time.");
+    const data = await wp(accessToken, "/posts/new", {
+      method: "POST", body: { title, content, date, excerpt, status: "future", type: "post" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, status: data.status, date: data.date,
+      URL: data.URL, message: data.status === "future" ? "Post scheduled." : "WordPress returned a response; verify the resulting status."
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_get_site_settings", {
+    description: "Read WordPress.com site settings when the connected account and API expose them. This tool does not change settings.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async () => {
+    const data = await wp(accessToken, "/settings");
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  });
+
   return server;
 }
 
