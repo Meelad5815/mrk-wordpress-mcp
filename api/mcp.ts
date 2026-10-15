@@ -386,6 +386,154 @@ function createServer(accessToken: string) {
     }, null, 2) }] };
   });
 
+
+  server.registerTool("wordpress_list_posts_filtered", {
+    description: "List WordPress.com posts using optional status, content type and result limit filters.",
+    inputSchema: {
+      status: z.enum(["publish", "draft", "pending", "private", "future", "trash", "any"]).optional().describe("Optional post status filter"),
+      type: z.enum(["post", "page", "any"]).optional().describe("Optional content type filter"),
+      number: z.number().int().min(1).max(50).optional().describe("Maximum results; default 20")
+    },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async ({ status, type, number }) => {
+    const params = new URLSearchParams({ number: String(number ?? 20), order_by: "date", order: "DESC" });
+    if (status && status !== "any") params.set("status", status);
+    if (type && type !== "any") params.set("type", type);
+    const data = await wp(accessToken, `/posts/?${params.toString()}`);
+    return { content: [{ type: "text", text: JSON.stringify((data.posts ?? []).map((p: any) => ({
+      ID: p.ID, title: p.title, URL: p.URL, status: p.status, type: p.type,
+      date: p.date, modified: p.modified, excerpt: p.excerpt
+    })), null, 2) }] };
+  });
+
+  server.registerTool("wordpress_update_post_details", {
+    description: "Update supported post fields such as title, content, excerpt, slug or status. Publishing changes visibility immediately.",
+    inputSchema: {
+      post_id: z.number().int().describe("Numeric post ID"),
+      title: z.string().optional().describe("New title"),
+      content: z.string().optional().describe("New HTML content"),
+      excerpt: z.string().optional().describe("New excerpt"),
+      slug: z.string().optional().describe("URL slug"),
+      status: z.enum(["draft", "publish", "pending", "private", "future"]).optional().describe("New status; publish makes it public")
+    },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ post_id, title, content, excerpt, slug, status }) => {
+    if ([title, content, excerpt, slug, status].every(v => v === undefined)) throw new Error("Provide at least one field to update.");
+    const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`);
+    if (existing.type === "page") throw new Error("This ID is a page. Use a page-specific tool.");
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`, {
+      method: "POST", body: { title, content, excerpt, slug, status }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, slug: data.slug, excerpt: data.excerpt,
+      status: data.status, URL: data.URL, modified: data.modified
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_update_page_details", {
+    description: "Update supported page fields such as title, content, excerpt, slug or status.",
+    inputSchema: {
+      page_id: z.number().int().describe("Numeric page ID"),
+      title: z.string().optional().describe("New title"),
+      content: z.string().optional().describe("New HTML content"),
+      excerpt: z.string().optional().describe("New excerpt"),
+      slug: z.string().optional().describe("URL slug"),
+      status: z.enum(["draft", "publish", "pending", "private", "future"]).optional().describe("New status")
+    },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ page_id, title, content, excerpt, slug, status }) => {
+    if ([title, content, excerpt, slug, status].every(v => v === undefined)) throw new Error("Provide at least one field to update.");
+    const existing = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`);
+    if (existing.type !== "page") throw new Error("The supplied ID is not a page.");
+    const data = await wp(accessToken, `/posts/${encodeURIComponent(String(page_id))}/`, {
+      method: "POST", body: { title, content, excerpt, slug, status }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, slug: data.slug, excerpt: data.excerpt,
+      status: data.status, URL: data.URL, modified: data.modified
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_duplicate_post_as_draft", {
+    description: "Copy an existing post's title and content into a new draft for safe editing.",
+    inputSchema: { post_id: z.number().int().describe("ID of the post to copy") },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ post_id }) => {
+    const original = await wp(accessToken, `/posts/${encodeURIComponent(String(post_id))}/`);
+    if (original.type === "page") throw new Error("This ID is a page, not a post.");
+    const data = await wp(accessToken, "/posts/new", {
+      method: "POST", body: { title: original.title ? `Copy of ${original.title}` : "Copy of post", content: original.content ?? "", excerpt: original.excerpt ?? "", status: "draft" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      original_ID: original.ID, new_ID: data.ID, title: data.title, status: data.status,
+      message: "A separate draft copy was created; the original post was not changed."
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_update_media_item", {
+    description: "Update a media item's title, caption or description where the WordPress.com API permits it.",
+    inputSchema: {
+      media_id: z.number().int().describe("Numeric media ID"),
+      title: z.string().optional().describe("New media title"),
+      caption: z.string().optional().describe("New caption"),
+      description: z.string().optional().describe("New description")
+    },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ media_id, title, caption, description }) => {
+    if ([title, caption, description].every(v => v === undefined)) throw new Error("Provide title, caption or description.");
+    const data = await wp(accessToken, `/media/${encodeURIComponent(String(media_id))}/`, {
+      method: "POST", body: { title, caption, description }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, URL: data.URL, title: data.title, caption: data.caption,
+      description: data.description, mime_type: data.mime_type
+    }, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_list_post_types", {
+    description: "List content types exposed by the configured WordPress.com site, subject to API access.",
+    inputSchema: {},
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async () => {
+    const data = await wp(accessToken, "/types");
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_list_taxonomies", {
+    description: "List taxonomies exposed by the configured WordPress.com site, subject to API access.",
+    inputSchema: {},
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  }, async () => {
+    const data = await wp(accessToken, "/taxonomies");
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  });
+
+  server.registerTool("wordpress_create_post_draft_with_excerpt", {
+    description: "Create a post draft with title, HTML content and optional excerpt; does not publish.",
+    inputSchema: {
+      title: z.string().min(1).describe("Post title"),
+      content: z.string().describe("Post body; HTML accepted"),
+      excerpt: z.string().optional().describe("Optional summary/excerpt")
+    },
+    securitySchemes: OAUTH_SCHEMES,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  }, async ({ title, content, excerpt }) => {
+    const data = await wp(accessToken, "/posts/new", {
+      method: "POST", body: { title, content, excerpt, status: "draft", type: "post" }
+    });
+    return { content: [{ type: "text", text: JSON.stringify({
+      ID: data.ID, title: data.title, excerpt: data.excerpt, status: data.status,
+      URL: data.URL, message: "Draft created, not published."
+    }, null, 2) }] };
+  });
+
   return server;
 }
 
